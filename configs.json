@@ -1,0 +1,32 @@
+{
+    "device": "cuda:0",
+    "data": "US",
+    "train_val_ratio": [0.8, 0.2],
+    "lstm_hidden_size":256,
+    "lstm_num_layers": 2,
+    "emb_size": 16,
+    "dropout": 0,
+    "wemb_size": 4,
+    "time_d": 4,
+    "heads": 4,
+    "support_len": 3,
+    "order": 2,
+    "num_weather": 8,
+    "use_se": true,
+    "use_cov": true,
+    "decay": 1e-5,
+    "lr": 0.01,
+    "in_len": 12,
+    "out_len": 12,
+    "batch": 64,
+    "episode": 80,
+    "period": 36,
+    "h_layers":2,
+    "in_channels":2,
+    "hidden_channels":[128, 64, 32],
+    "out_channels":2,
+    "gamma":0.95,
+    "step_size":5
+    
+
+}
