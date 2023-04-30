@@ -6,7 +6,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 class LSTMPeephole(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers=2):
+    def __init__(self, input_size, hidden_size, num_layers=3):
         super(LSTMPeephole, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers, batch_first=True)
 
@@ -20,7 +20,7 @@ class LSTMSubNet(nn.Module):
         super(LSTMSubNet, self).__init__()
         self.encoder = LSTMPeephole(in_c, hid_c, num_layers=num_layers)
         self.decoder = LSTMPeephole(hid_c, out_c, num_layers=num_layers)
-        self.act = nn.LeakyReLU()
+        self.act = nn.ReLU()
 
     def forward(self, inputs):
         B, N, T, C = inputs.size()
@@ -35,7 +35,7 @@ class LSTMSubNet(nn.Module):
 
         # Activation
         outputs = self.act(dec_out)
-        outputs = outputs.view(B, N, -1, 1)
+        outputs = outputs.view(B, N, -1)
         return outputs
 
 class LSTMNet(nn.Module):
@@ -46,13 +46,5 @@ class LSTMNet(nn.Module):
     def forward(self, data, device):
         flow = data
         flow = flow.to(device)
-        # Create an empty tensor with dimensions [64, 70, 12, 1]
-        predictions = torch.zeros(64, 70, 12, 1, device=flow.device)
-
-        for i in range(70):
-            flow_i = flow[:, i:i+1, :, :]
-            prediction_i = self.subnet(flow_i)
-            predictions[:, i, :, :] = prediction_i.squeeze(1)  # Remove the second dimension and assign the result to the corresponding position in the predictions tensor
-
-
-        return predictions
+        prediction = self.subnet(flow)
+        return prediction
