@@ -1,50 +1,63 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torch.utils.data import DataLoader, TensorDataset
 
-class LSTMPeephole(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers=3):
-        super(LSTMPeephole, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers, batch_first=True)
+class Encoder(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers):
+        super(Encoder, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
 
     def forward(self, x):
-        x, (hidden, cell) = self.lstm(x)
-        return x, hidden, cell
+        #x = x.view(-1, x.size(2), x.size(3))  # Reshape input to (batch_size*num_airports, sequence_length, input_size)
+        _, (hidden, cell) = self.lstm(x)
+        return hidden, cell
 
 
-class LSTMSubNet(nn.Module):
-    def __init__(self, in_c, hid_c, out_c, num_layers=2):
-        super(LSTMSubNet, self).__init__()
-        self.encoder = LSTMPeephole(in_c, hid_c, num_layers=num_layers)
-        self.decoder = LSTMPeephole(hid_c, out_c, num_layers=num_layers)
-        self.act = nn.ReLU()
+class Decoder(nn.Module):
+    def __init__(self, output_size, hidden_size, num_layers):
+        super(Decoder, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.output_size = output_size
+        self.lstm = nn.LSTM(output_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
 
-    def forward(self, inputs):
-        B, N, T, C = inputs.size()
-        inputs = inputs.view(B * N, T, C)
+    def forward(self, x, hidden, cell):
+        output, (hidden, cell) = self.lstm(x, (hidden, cell))
+        output = self.fc(output)
+        return output, hidden, cell
 
-        # Encoder
-        enc_out,_,_ = self.encoder(inputs)
-        # Prepare input for the decoder (using the last encoder output)
-        decoder_input = enc_out[:, -1, :].unsqueeze(1).repeat(1, 12, 1)
-        # Decoder
-        dec_out, _,_ = self.decoder(decoder_input)
 
-        # Activation
-        outputs = self.act(dec_out)
-        outputs = outputs.view(B, N, -1)
+class EncoderDecoder(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size, num_layers=2):
+        super(EncoderDecoder, self).__init__()
+        self.encoder = Encoder(input_size, hidden_size, num_layers)
+        self.decoder = Decoder(output_size, hidden_size, num_layers)
+
+    def forward(self, x, target_len):
+        batch_size = x.size(0)
+        num_airports = x.size(1)
+        output_size = self.decoder.output_size
+        
+        # Reshape input to (batch_size*num_airports, sequence_length, input_size)
+        x = x.reshape(batch_size * num_airports, -1, 1)
+        hidden, cell = self.encoder(x)
+
+        # Prepare input for the decoder
+        x = torch.zeros(batch_size * num_airports, 1, output_size).to(x.device)
+
+        # Initialize the output tensor
+        outputs = torch.zeros(batch_size * num_airports, target_len, output_size).to(x.device)
+
+        # Decoder loop
+        for t in range(target_len):
+            x, hidden, cell = self.decoder(x, hidden, cell)
+            outputs[:, t] = x.squeeze(1)
+
+        # Reshape the output tensor to (batch_size, num_airports, target_len, output_size)
+        outputs = outputs.view(batch_size, num_airports, target_len, output_size)
+
         return outputs
-
-class LSTMNet(nn.Module):
-    def __init__(self, in_c, hid_c=256, out_c=1):
-        super(LSTMNet, self).__init__()
-        self.subnet = LSTMSubNet(in_c, hid_c, out_c)
-
-    def forward(self, data, device):
-        flow = data
-        flow = flow.to(device)
-        prediction = self.subnet(flow)
-        return prediction
