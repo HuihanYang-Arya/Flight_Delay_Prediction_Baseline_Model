@@ -52,4 +52,8 @@ For the above four methods, the implementation is in `model-name.py`. To see the
 
 One possible retults to compare are in `baseline_results_possible.png`.
 
+### Models in folder `GNN_baseline`
+
+Contains models that has not been trained results. 
+
 
