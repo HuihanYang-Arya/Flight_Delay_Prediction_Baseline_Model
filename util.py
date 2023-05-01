@@ -9,7 +9,7 @@ import scipy.sparse as sp
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from Conv_LSTM import ConvLSTM1DNet
+from Conv_LSTM import EncoderDecoder
 import util
 import argparse
 import random

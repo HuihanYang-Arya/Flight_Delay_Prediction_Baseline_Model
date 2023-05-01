@@ -1,37 +1,47 @@
 import torch
 import torch.nn as nn
 
-class ConvLSTM1DSubNet(nn.Module):
-    def __init__(self, in_c, hid_c, out_c, kernel_size=3, padding=1):
-        super(ConvLSTM1DSubNet, self).__init__()
-        self.conv1d = nn.Conv1d(in_c, hid_c, kernel_size, padding=padding)
-        self.lstm = nn.LSTM(hid_c, hid_c, batch_first=True)
-        self.fc = nn.Linear(hid_c, out_c)
-        self.act = nn.LeakyReLU()
+class Encoder(nn.Module):
+    def __init__(self, input_size, hidden_size, kernel_size, num_layers):
+        super(Encoder, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.convlstm = nn.Conv1d(in_channels=input_size, out_channels=hidden_size, kernel_size=kernel_size)
 
-    def forward(self, inputs):
-        """
-        :param inputs: [B, N, T, C]
-        :return: [B, N, T, D]
-        """
-        B, N, T, C = inputs.size()
-        inputs = inputs.view(B * N, T, C)
-        inputs = inputs.permute(0, 2, 1)  # Change to [B * N, C, T] for Conv1d
-        conv_out = self.conv1d(inputs)
-        conv_out = conv_out.permute(0, 2, 1)  # Change back to [B * N, T, C] for LSTM
-        lstm_out, _ = self.lstm(conv_out)
-        outputs = self.fc(lstm_out)
-        outputs = self.act(outputs)
-        outputs = outputs.view(B, N, T, -1)
+    def forward(self, x):
+        hidden = self.convlstm(x)
+        return hidden
+
+class Decoder(nn.Module):
+    def __init__(self, output_size, hidden_size, kernel_size, num_layers):
+        super(Decoder, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.convlstm = nn.Conv1d(in_channels=hidden_size, out_channels=output_size, kernel_size=1)
+
+    def forward(self, x, hidden):
+        output = self.convlstm(hidden)
+        return output
+
+class EncoderDecoder(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size, kernel_size, num_layers=2):
+        super(EncoderDecoder, self).__init__()
+        self.encoder = Encoder(input_size, hidden_size, kernel_size, num_layers)
+        self.decoder = Decoder(output_size, hidden_size, kernel_size, num_layers)
+
+    def forward(self, x, target_len):
+        batch_size = x.size(0)
+        num_airports = x.size(1)
+        output_size = 1
+        
+        # Reshape input to (batch_size*num_airports, input_size, sequence_length)
+        x = x.reshape(batch_size * num_airports, 1, -1)
+        hidden = self.encoder(x)
+
+        # Decoder
+        outputs = self.decoder(x, hidden)
+        print(outputs.shape)
+        # Reshape the output tensor to (batch_size, num_airports, output_size, target_len)
+        outputs = outputs.view(batch_size, num_airports, 1, target_len)
+
         return outputs
-
-class ConvLSTM1DNet(nn.Module):
-    def __init__(self, in_c, hid_c, out_c, kernel_size=3, padding=1):
-        super(ConvLSTM1DNet, self).__init__()
-        self.subnet = ConvLSTM1DSubNet(in_c, hid_c, out_c, kernel_size, padding)
-
-    def forward(self, data, device):
-        flow = data["flow_x"]
-        flow = flow.to(device)
-        prediction = self.subnet(flow)
-        return prediction
