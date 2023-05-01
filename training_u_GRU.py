@@ -80,22 +80,37 @@ def main(delay_index = 0):
             testw = testw.unsqueeze(-1)
             test = torch.cat((testw, testx), dim=-1)
             data = {"flow_x": test, "graph": adj}
-            output = model(data,device)
+            output = model(data,device).squeeze(dim=2)
             output = output.detach().cpu().numpy()
             output = scaler.inverse_transform(output)
             outputs.append(output)
         yhat = np.concatenate(outputs)
-        amae = []
-        ar2 = []
-        armse = []
-        for i in range(2):
-            metrics = test_error(yhat[:,:,i,0],label[:,:,i,0])
-            amae.append(metrics[0])
-            ar2.append(metrics[2])
-            armse.append(metrics[1])
+        prediction2 = store_result(yhat,label,2)
+        amae3.append(prediction2[0])
+        ar3.append(prediction2[1])
+        armser3.append(prediction2[2])
+        print(ar3)
+        prediction5 = store_result(yhat,label,5)
+        amae6.append(prediction5[0])
+        ar6.append(prediction5[1])
+        armser6.append(prediction5[2])
+        prediction11 = store_result(yhat,label,11)
+        amae12.append(prediction11[0])
+        ar12.append(prediction11[1])
+        armser12.append(prediction11[2])
          
-        log = 'On average over all horizons, Test MAE: {:.4f}, Test R2: {:.4f}, Test RMSE: {:.4f}'
-        print(log.format(np.mean(amae),np.mean(ar2),np.mean(armse)))
+    df = pd.DataFrame()
+    df['amae3'] = amae3
+    df['ar3'] = ar3
+    df['armser3'] = armser3
+    df['amae6'] = amae6
+    df['ar6'] = ar6
+    df['armser6'] = armser6
+    df['amae12'] = amae12
+    df['ar12'] = ar12
+    df['armser12'] = armser12
+    df.to_csv('./baseline_results/GAT.csv')
+    
 
 if __name__ == '__main__':
     main()
